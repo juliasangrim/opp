@@ -1,3 +1,1 @@
-"C:\Program Files\JetBrains\CLion 2020.3.2\bin\cmake\win\bin\cmake.exe" -E rm -f CMakeFiles\lab1_opp.dir/objects.a
-C:\PROGRA~2\MINGW-~1\I686-8~1.0-P\mingw32\bin\ar.exe cr CMakeFiles\lab1_opp.dir/objects.a @CMakeFiles\lab1_opp.dir\objects1.rsp
-C:\PROGRA~2\MINGW-~1\I686-8~1.0-P\mingw32\bin\gcc.exe -g   -Wl,--whole-archive CMakeFiles\lab1_opp.dir/objects.a -Wl,--no-whole-archive  -o lab1_opp.exe -Wl,--out-implib,liblab1_opp.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\lab1_opp.dir\linklibs.rsp
+/usr/bin/cc -g  -rdynamic CMakeFiles/lab1_opp.dir/main.c.o  -o lab1_opp  -lm 

@@ -1,3 +1,3 @@
-C:/Users/lohuwka/CLionProjects/lab1_opp/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-C:/Users/lohuwka/CLionProjects/lab1_opp/cmake-build-debug/CMakeFiles/lab1_opp.dir
-C:/Users/lohuwka/CLionProjects/lab1_opp/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/jul/repo/haha/lab1_opp/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/jul/repo/haha/lab1_opp/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/jul/repo/haha/lab1_opp/cmake-build-debug/CMakeFiles/lab1_opp.dir
