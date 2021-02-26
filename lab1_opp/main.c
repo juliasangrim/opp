@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
     double Y[n] = {0};
     double temp[n] = {0};
     double t = 0;
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < n; i++){  //initialisation of matrix A, vector B
         B[i] = (double)(rand() % 2000 - 1000) / 3;
         for (int j = i; j < n; j++) {
             double randValue = (double)(rand() % (2000 - 1000) / 3.0);
@@ -82,21 +82,21 @@ int main(int argc, char* argv[]) {
     printMatrix(A);
     printVector(B, "B");
     mul(A, X, temp);
-    sub(temp, B, Y);
-    double valueCheck = absVector(Y) / absVector(B);
+    sub(temp, B, Y); //calculate Y(0)
+    double valueCheck = absVector(Y) / absVector(B); //the value for checking when we should stop calculate
     double prevValue = 0;
     double epsilon = 0.00001;
     while (valueCheck >= epsilon) {
         prevValue = valueCheck;
-        mul(A, Y, temp);
-        t = scalarMul(Y, temp) / scalarMul(temp, temp);
-        mulVector(t, Y);
-        sub(X, Y, X);
+        mul(A, Y, temp); // multiplex A and Y
+        t = scalarMul(Y, temp) / scalarMul(temp, temp); //(Y, A*Y)/(A*Y,A*Y) calculate the T(n)
+        mulVector(t, Y); //
+        sub(X, Y, X); //calculate the X(n+1)
         mul(A, X, temp);
-        sub(temp, B, Y);
-        valueCheck = absVector(Y) / absVector(B);
-        if (prevValue == valueCheck) {
-            printf("No limits\n");
+        sub(temp, B, Y); // calculate Y(n)
+        valueCheck = absVector(Y) / absVector(B); //calculate new value for checking
+        if (prevValue == valueCheck) {  //in case when matrix have no limits
+            printf("no limits\n");
             return 0;
         }
     }
