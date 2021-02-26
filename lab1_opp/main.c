@@ -4,26 +4,21 @@
 #include <math.h>
 #define n 2
 
-void printMatrix(const double *matrix)
-{
-    for (int y = 0; y < n; ++y)
-    {
-        for (int x = 0; x < n; ++x)
-        {
-            printf("%f ", matrix[y*n + x]);
+void printMatrix(const double* A) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            printf("%f ", A[i*n + j]);
         }
         printf("\n");
     }
 }
 
-void printVector(const double *vector, const char *name)
-{
-    printf("----------\n%s:\n", name);
-    for (int i = 0; i < n; ++i)
-    {
-        printf("%9.12f\n", vector[i]);
+void printVector(const double* B, const char* name) {
+    printf("%s:\n", name);
+    for (int i = 0; i < n; ++i) {
+        printf("%f\n", B[i]);
     }
-    printf("----------\n");
+    printf("\n");
 }
 
 void mul(const double* A, const double* B, double* result) {
@@ -84,19 +79,8 @@ int main(int argc, char* argv[]) {
             A[j * n + i] = randValue;
         }
     }
-    printf("A:");
-    for (int i = 0; i < n; i++){
-        for (int j = 0; j < n; j++) {
-            printf("%3f ", A[i * n + j]);
-        }
-        printf("\n");
-    }
-    printf("B:");
-    for (int i = 0; i < n; i++) {
-        printf("%f ", B[i]);
-
-    }
-    printf("\n");
+    printMatrix(A);
+    printVector(B, "B");
     mul(A, X, temp);
     sub(temp, B, Y);
     double valueCheck = absVector(Y) / absVector(B);
@@ -116,10 +100,6 @@ int main(int argc, char* argv[]) {
             return 0;
         }
     }
-    printf("X:");
-    for (int i = 0; i < n; i++) {
-        printf("%f ", X[i]);
-
-    }
+    printVector(X, "X");
     return 0;
 }
