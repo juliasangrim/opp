@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#define n 10 	
+#define n 300
 
 void printMatrix(const double* A) {
     for (int i = 0; i < n; ++i) {
@@ -79,8 +79,6 @@ int main(int argc, char* argv[]) {
             A[j * n + i] = randValue;
         }
     }
-   struct timespec start, end;
-   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
   //  printMatrix(A);
    // printVector(B, "B");
     mul(A, X, temp);
@@ -90,6 +88,7 @@ int main(int argc, char* argv[]) {
     double epsilon = 0.00001;
     int count = 0;
     while (valueCheck >= epsilon) {
+        ++count; 
         prevValue = valueCheck;
         mul(A, Y, temp); // multiplex A and Y
         t = scalarMul(Y, temp) / scalarMul(temp, temp); //(Y, A*Y)/(A*Y,A*Y) calculate the T(n)
@@ -98,19 +97,11 @@ int main(int argc, char* argv[]) {
         mul(A, X, temp);
         sub(temp, B, Y); // calculate Y(n)
         valueCheck = absVector(Y) / absVector(B); //calculate new value for checking
-        if (prevValue <= valueCheck) {
-	    count++;  //in case when matrix have no limits
-	    if (count >= 6) {
-                printf("no limits\n");
-                return 0;
-            }
-        } 
-	else {
-	    count = 0;
-	}
+        if (prevValue == valueCheck) {  //in case when matrix have no limits
+            printf("no limits\n");
+            return 0;
+        }
     }
-    clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-    printf("Time taken: %lf sec.\n",end.tv_sec-start.tv_sec+ 0.000000001*(end.tv_nsec-start.tv_nsec));
     printVector(X, "X");
     return 0;
 }
