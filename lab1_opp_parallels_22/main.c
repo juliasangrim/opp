@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
         printMatrix(A, n);
         vectorInit(X, B);
         printVector(B, "B", procRank, 1, n);
-        printVector(X, "X", procRank, 1, n);
+        //printVector(X, "X", procRank, 1, n);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     distribArray(shiftIndex, numElem, procNum);
@@ -180,18 +180,9 @@ int main(int argc, char* argv[]) {
 
     double* partArrayX = (double*)malloc(numElem[procRank] * sizeof(double));
     MPI_Scatterv(X, numElem, shiftIndex, MPI_DOUBLE, partArrayX, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    printVector(partArrayB, "partB:", procRank, procNum,numElem[procRank]);
-    MPI_Barrier(MPI_COMM_WORLD);
-    printVector(partArrayY, "partY:", procRank, procNum,numElem[procRank]);
-    MPI_Barrier(MPI_COMM_WORLD);
-    printVector(partArrayX, "partX:", procRank, procNum,numElem[procRank]);
-    MPI_Barrier(MPI_COMM_WORLD);
     double start = MPI_Wtime();
     mul(partArrayA, partArrayX, temp, numElem[procRank]);
-    if (procRank == 0) {
-        printVector(temp, "temp", procRank, procNum, n);
-    }
+
     double* partArrayTmp = (double*)malloc(numElem[procRank] * sizeof(double));
     MPI_Scatterv(temp, numElem, shiftIndex, MPI_DOUBLE, partArrayTmp, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
     sub(partArrayTmp, partArrayB, partArrayY, numElem[procRank]); //calculate Y(0)

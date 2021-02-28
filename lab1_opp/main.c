@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#define n 10 	
+#define n 3 	
 
 void printMatrix(const double* A) {
     for (int i = 0; i < n; ++i) {
@@ -19,6 +19,20 @@ void printVector(const double* B, const char* name) {
         printf("%f\n", B[i]);
     }
     printf("\n");
+}
+
+void matrixInit(double* A, double* B) {
+    for (int i = 0; i < n; i++){  //initialisation of matrix A, vector B
+        B[i] = (double)(rand() % 2000 - 1000) / 3;
+        for (int j = i; j < n; j++) {
+            double randValue = (double)(rand() % (200 - 100) / 3.0);
+            if (i == j) {
+                randValue += 50;
+            }
+            A[i * n + j] = randValue;
+            A[j * n + i] = randValue;
+        }
+    }
 }
 
 void mul(const double* A, const double* B, double* result) {
@@ -60,29 +74,8 @@ double absVector(const double* A) {
     return res;
 }
 
-int main(int argc, char* argv[]) {
-    srand(time(NULL));
-    double A[n * n];
-    double B[n];
-    double X[n] = {0};
-    double Y[n] = {0};
-    double temp[n] = {0};
+int calculate(double* A, double* X, double* B, double* Y, double* temp) {
     double t = 0;
-    for (int i = 0; i < n; i++){  //initialisation of matrix A, vector B
-        B[i] = (double)(rand() % 2000 - 1000) / 3;
-        for (int j = i; j < n; j++) {
-            double randValue = (double)(rand() % (200 - 100) / 3.0);
-            if (i == j) {
-                randValue += 50;
-            }
-            A[i * n + j] = randValue;
-            A[j * n + i] = randValue;
-        }
-    }
-   struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-    //  printMatrix(A);
-    // printVector(B, "B");
     mul(A, X, temp);
     sub(temp, B, Y); //calculate Y(0)
     double valueCheck = absVector(Y) / absVector(B); //the value for checking when we should stop calculate
@@ -99,18 +92,37 @@ int main(int argc, char* argv[]) {
         sub(temp, B, Y); // calculate Y(n)
         valueCheck = absVector(Y) / absVector(B); //calculate new value for checking
         if (prevValue <= valueCheck) {
-	    count++;  //in case when matrix have no limits
-	    if (count >= 6) {
+            count++;  //in case when matrix have no limits
+            if (count >= 6) {
                 printf("no limits\n");
-                return 0;
+                return 1;
             }
-        } 
-	    else {
-	        count = 0;
-	    }
+        }
+        else {
+            count = 0;
+        }
     }
+    return 0;
+}
+
+int main(int argc, char* argv[]) {
+    srand(0);
+    /////////////init////////////////
+    double A[n * n];
+    double B[n];
+    double X[n] = {0};
+    double Y[n] = {0};
+    double temp[n] = {0};
+    double t = 0;
+    /////////////////////////////////
+    matrixInit(A, B);
+    struct timespec start, end;
+    printMatrix(A);
+    printVector(B, "B");
+    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    calculate(A, X, B, Y, temp);
     clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-    printf("Time taken: %lf sec.\n",end.tv_sec-start.tv_sec+ 0.000000001*(end.tv_nsec-start.tv_nsec));
     printVector(X, "X");
+    printf("Time taken: %lf sec.\n",end.tv_sec-start.tv_sec+ 0.000000001*(end.tv_nsec-start.tv_nsec));
     return 0;
 }

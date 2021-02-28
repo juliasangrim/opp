@@ -24,7 +24,6 @@ void printVector(const double* B, const char* name, int procRank, int procNum, i
             }
             printf("\n");
         }
-        MPI_Barrier(MPI_COMM_WORLD);
     }
 }
 
@@ -95,8 +94,8 @@ void vectorInit(double* X, double* B) {
     }
 }
 
-void distribArray(int* shiftIndex, int* numElem, int procNum) {
-    int rowNum = n/procNum;
+void distribMatrix(double* A, double** partA, int* shiftIndex, int* numElem, int procNum, int procRank) {
+    int rowNum = n / procNum;
     int restRows = n;
     shiftIndex[0] = 0;
     numElem[0] = n * rowNum;
@@ -106,14 +105,21 @@ void distribArray(int* shiftIndex, int* numElem, int procNum) {
         numElem[i] = n * rowNum;
         shiftIndex[i] = numElem[i - 1] + shiftIndex[i - 1];
     }
-
+    *partA = (double*)malloc(numElem[procRank] * sizeof(double));
+    MPI_Scatterv(A, numElem, shiftIndex, MPI_DOUBLE,
+                 *partA, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
-void distribVector(int* shiftIndex, int* numElem, int procNum) {
+void distribVector(double* B, double* Y, double** partB, double** partY, int* shiftIndex, int* numElem, int procNum, int procRank) {
     for (int i = 0; i < procNum; ++i) {
         numElem[i] /= n;
         shiftIndex[i] /= n;
     }
+    *partB = (double*)malloc(numElem[procRank] * sizeof(double));
+    *partY = (double*)malloc(numElem[procRank] * sizeof(double));
+    MPI_Scatterv(B, numElem, shiftIndex, MPI_DOUBLE, *partB, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(Y, numElem, shiftIndex, MPI_DOUBLE, *partY, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
 }
 
 void freeArrays(double* A, double* B, double* X, double* Y, double* tmp, int* shiftIndex, int* numElem, double* partArrayA, double* partArrayB, double* partArrayY, double* partArrayX, int procRank) {
@@ -126,73 +132,42 @@ void freeArrays(double* A, double* B, double* X, double* Y, double* tmp, int* sh
     free(tmp);
     free(shiftIndex);
     free(numElem);
-    free(partArrayA);
     free(partArrayB);
     free(partArrayX);
     free(partArrayY);
 }
 
 
-int main(int argc, char* argv[]) {
-    printf("duh");
-    srand(0);
-    /////////////init everything//////////////////
-    double* A;
-    double* B = (double*)malloc(n * sizeof(double));
-    double* X = (double*)malloc(n * sizeof(double));
-    int* shiftIndex = (int*)malloc(n * sizeof(int)); //array contain the shift from beginning of main array for each process
-    int* numElem = (int*)malloc(n * sizeof(int)); //array contain amount of elements in each process
-    double* Y = (double*)malloc(n * sizeof(double));
+void calculate(double* A, double* partArrayA, double* X, double* partArrayX, double* B, double* partArrayB,
+              double* Y, double* partArrayY, double* tmp, int* numElem, int* shiftIndex, int procRank) {
     double t = 0;
-    vectorInit(X, B);
-    MPI_Init(&argc, &argv);
-    int procNum;
-    int procRank;
-    MPI_Comm_size(MPI_COMM_WORLD, &procNum);
-    MPI_Comm_rank(MPI_COMM_WORLD, &procRank);
-    int rowsNum;
-    if (procRank == 0) {
-        A = (double*)malloc(n * n * sizeof(double));
-        matrixInit(A, procRank);
-        printMatrix(A, n);
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    printVector(B, "B", procRank, procNum, n);
-    //////////distribute//////////
-    double start = MPI_Wtime();
-    distribArray(shiftIndex, numElem, procNum);
-    double* partArrayA = (double*)malloc(numElem[procRank] * sizeof(double)); //array for part of array A
-    MPI_Scatterv(A, numElem, shiftIndex, MPI_DOUBLE,
-                 partArrayA, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    distribVector(shiftIndex, numElem, procNum);
-    //////making part of arrays///////////////////
-    double* partArrayB = (double*)malloc(numElem[procRank] * sizeof(double));
-    double* partArrayY = (double*)malloc(numElem[procRank] * sizeof(double));
-    double* partArrayX = (double*)malloc(numElem[procRank] * sizeof(double));
-    MPI_Scatterv(B, numElem, shiftIndex, MPI_DOUBLE, partArrayB, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Scatterv(Y, numElem, shiftIndex, MPI_DOUBLE, partArrayY, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    ///////////calculate/////////////////////
-    double* tmp = (double*)malloc(numElem[procRank] * sizeof(double));
     mul(partArrayA, X, tmp, numElem[procRank]);
     sub(tmp, partArrayB, partArrayY, numElem[procRank]); //calculate Y(0)
-    double valueCheck = absVector(partArrayY, numElem[procRank]) / absVector(partArrayB, numElem[procRank]);//the value for checking when we should stop calculate
+    double valueCheck = absVector(partArrayY, numElem[procRank])
+                      / absVector(partArrayB, numElem[procRank]);//the value for checking when we should stop calculate
     double prevValue = 0;
     double epsilon = 0.00001;
     int counter = 0;
     while (valueCheck >= epsilon) {
         prevValue = valueCheck;
-        MPI_Allgatherv(partArrayY, numElem[procRank], MPI_DOUBLE, Y, numElem, shiftIndex, MPI_DOUBLE, MPI_COMM_WORLD);
-        mul(partArrayA, Y, tmp, numElem[procRank]); // multiplex A and Y
-        t = scalarMul(partArrayY, tmp, numElem[procRank]) / scalarMul(tmp, tmp, numElem[procRank]); //(Y, A*Y)/(A*Y,A*Y) calculate the T(n)
-        mulVector(t, partArrayY, numElem[procRank]); //
+        MPI_Allgatherv(partArrayY, numElem[procRank], MPI_DOUBLE,
+                       Y, numElem, shiftIndex, MPI_DOUBLE, MPI_COMM_WORLD);
 
-        MPI_Scatterv(X, numElem, shiftIndex, MPI_DOUBLE, partArrayX, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        mul(partArrayA, Y, tmp, numElem[procRank]); // multiplex A and Y
+        t = scalarMul(partArrayY, tmp, numElem[procRank])
+                / scalarMul(tmp, tmp, numElem[procRank]); //(Y, A*Y)/(A*Y,A*Y) calculate the T(n)
+        mulVector(t, partArrayY, numElem[procRank]); //
+        MPI_Scatterv(X, numElem, shiftIndex, MPI_DOUBLE,
+                     partArrayX, numElem[procRank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
         sub(partArrayX, partArrayY, partArrayX, numElem[procRank]); //calculate the X(n+1)
 
-        MPI_Allgatherv(partArrayX, numElem[procRank], MPI_DOUBLE, X, numElem, shiftIndex, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Allgatherv(partArrayX, numElem[procRank], MPI_DOUBLE,
+                       X, numElem, shiftIndex, MPI_DOUBLE, MPI_COMM_WORLD);
         mul(partArrayA, X, tmp, numElem[procRank]);
         sub(tmp, partArrayB, partArrayY, numElem[procRank]); // calculate Y(n)
-        valueCheck = absVector(partArrayY, numElem[procRank]) / absVector(partArrayB, numElem[procRank]); //calculate new value for checking
+
+        valueCheck = absVector(partArrayY, numElem[procRank])
+                / absVector(partArrayB, numElem[procRank]); //calculate new value for checking
         if (prevValue <= valueCheck) {  //in case when matrix have no limits
             counter++;
             if (counter >= 6) {
@@ -207,11 +182,50 @@ int main(int argc, char* argv[]) {
             counter = 0;
         }
     }
+}
+
+
+
+int main(int argc, char* argv[]) {
+    srand(0);
+    /////////////init everything//////////////////
+    double* A;
+    double* B = (double*)malloc(n * sizeof(double));
+    double* X = (double*)malloc(n * sizeof(double));
+    double* Y = (double*)malloc(n * sizeof(double));
+    double* partArrayA = NULL;
+    double* partArrayB = NULL;
+    double* partArrayY = NULL;
+    int* shiftIndex = (int*)malloc(n * sizeof(int)); //array contain the shift from beginning of main array for each process
+    int* numElem = (int*)malloc(n * sizeof(int)); //array contain amount of elements in each process
+    MPI_Init(&argc, &argv);
+    int procNum;
+    int procRank;
+    MPI_Comm_size(MPI_COMM_WORLD, &procNum);
+    MPI_Comm_rank(MPI_COMM_WORLD, &procRank);
+    if (procRank == 0) {
+        A = (double*)malloc(n * n * sizeof(double));
+        matrixInit(A, procRank);
+        printMatrix(A, n);
+        vectorInit(X, B);
+        printVector(B, "B", 0, 1, n);
+    }
+    MPI_Bcast(B, n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    //////////distribute//////////
+    distribMatrix(A, &partArrayA, shiftIndex, numElem, procNum, procRank);
+    distribVector(B, Y, &partArrayB, &partArrayY, shiftIndex, numElem, procNum, procRank);
+
+    ///////////calculate/////////////////////
+    double* tmp = (double*)malloc(numElem[procRank] * sizeof(double));
+    double* partArrayX = (double*)malloc(numElem[procRank] * sizeof(double));
+    double start = MPI_Wtime();
+    calculate(A, partArrayA, X, partArrayX, B, partArrayB, Y, partArrayY, tmp, numElem, shiftIndex, procRank);
     double end = MPI_Wtime();
-    if (procRank == 0){
+    if (procRank == 0) {
+        printVector(X, "X", procRank, 1, n);
         printf("Calculating time:%f\n", end - start);
     }
-    printVector(X, "X", procRank, procNum, n);
     ///////////////free///////////////
     freeArrays(A, B, X, Y, tmp, shiftIndex, numElem, partArrayA, partArrayB, partArrayY, partArrayX, procRank);
     MPI_Finalize();
