@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < n; i++){  //initialisation of matrix A, vector B
         B[i] = (double)(rand() % 2000 - 1000) / 3;
         for (int j = i; j < n; j++) {
-            double randValue = (double)(rand() % (2000 - 1000) / 3.0);
+            double randValue = (double)(rand() % (200 - 100) / 3.0);
             if (i == j) {
                 randValue += 50;
             }
@@ -80,9 +80,9 @@ int main(int argc, char* argv[]) {
         }
     }
    struct timespec start, end;
-   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-  //  printMatrix(A);
-   // printVector(B, "B");
+    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    //  printMatrix(A);
+    // printVector(B, "B");
     mul(A, X, temp);
     sub(temp, B, Y); //calculate Y(0)
     double valueCheck = absVector(Y) / absVector(B); //the value for checking when we should stop calculate
@@ -105,9 +105,9 @@ int main(int argc, char* argv[]) {
                 return 0;
             }
         } 
-	else {
-	    count = 0;
-	}
+	    else {
+	        count = 0;
+	    }
     }
     clock_gettime(CLOCK_MONOTONIC_RAW, &end);
     printf("Time taken: %lf sec.\n",end.tv_sec-start.tv_sec+ 0.000000001*(end.tv_nsec-start.tv_nsec));
