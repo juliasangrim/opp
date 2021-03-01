@@ -13,6 +13,8 @@ stdio.h
 -
 stdlib.h
 -
+time.h
+-
 math.h
 -
 

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#define n 3 	
+#define n 1000
 
 void printMatrix(const double* A) {
     for (int i = 0; i < n; ++i) {
@@ -80,7 +80,7 @@ int calculate(double* A, double* X, double* B, double* Y, double* temp) {
     sub(temp, B, Y); //calculate Y(0)
     double valueCheck = absVector(Y) / absVector(B); //the value for checking when we should stop calculate
     double prevValue = 0;
-    double epsilon = 0.00001;
+    double epsilon = 0.0001;
     int count = 0;
     while (valueCheck >= epsilon) {
         prevValue = valueCheck;
@@ -117,12 +117,14 @@ int main(int argc, char* argv[]) {
     /////////////////////////////////
     matrixInit(A, B);
     struct timespec start, end;
-    printMatrix(A);
-    printVector(B, "B");
+    //printMatrix(A);
+    //printVector(B, "B");
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-    calculate(A, X, B, Y, temp);
+    if (calculate(A, X, B, Y, temp) == 1) {
+        return 1;
+    }
     clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-    printVector(X, "X");
+    //printVector(X, "X");
     printf("Time taken: %lf sec.\n",end.tv_sec-start.tv_sec+ 0.000000001*(end.tv_nsec-start.tv_nsec));
     return 0;
 }
