@@ -1,3 +1,0 @@
-/home/jul/repo/haha/lab1_opp_parallels_22/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/jul/repo/haha/lab1_opp_parallels_22/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/jul/repo/haha/lab1_opp_parallels_22/cmake-build-debug/CMakeFiles/lab1_opp_parallels_22.dir
