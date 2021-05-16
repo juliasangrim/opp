@@ -78,9 +78,12 @@ void *doWork(void *args) {
         taskList = new int[numTasks];
         //fill list of tasks
         makeTaskList(numTasks, numProc, rankProc, iterCounter);
+        //while for additional work
         while (true) {
             sumNumTaskPerIter += numTasks;
+            //do task list
             for (currTask = 0; currTask < numTasks; ++currTask) {
+                //mutex for get safety data
                 pthread_mutex_lock(&mutex);
                 int currWeight = taskList[currTask];
                 pthread_mutex_unlock(&mutex);
@@ -90,12 +93,15 @@ void *doWork(void *args) {
             //request for additional job
             for (int i = 0; i < numProc; ++i) {
                 if (i != rankProc) {
+                    //send flag for additional job
                     MPI_Send(&myWorkDone, 1, MPI_CXX_BOOL, i, TAG_FOR_REQUEST, MPI_COMM_WORLD);
+                    //get new num of task
                     MPI_Recv(&recvTask, 1, MPI_INT, i, TAG_FOR_NUM, MPI_COMM_WORLD, &status);
                     //if the proc have nothing to give
                     if (recvTask == 0) {
                         continue;
                     }
+                    //get new tasks
                     MPI_Recv(taskList, recvTask, MPI_INT, i, TAG_FOR_LIST, MPI_COMM_WORLD, &status);
                 }
             }
@@ -110,9 +116,12 @@ void *doWork(void *args) {
         double timeOneIter = end - start;
         //TODO FUNC FOR PRINT
         print(timeOneIter, numProc, rankProc, iterCounter, sumNumTaskPerIter);
+        //sync all process
         MPI_Barrier(MPI_COMM_WORLD);
     }
+    //flag for killing thread in wait
     myWorkDone = STOP_RECV;
+    //send flag to kill thread in wait
     MPI_Send(&myWorkDone, 1, MPI_CXX_BOOL, rankProc, TAG_FOR_REQUEST, MPI_COMM_WORLD);
     pthread_exit(nullptr);
 }
@@ -122,21 +131,27 @@ void *waitForRequest(void *args) {
     bool giveMeWork;
     int numShareTask;
     MPI_Status status;
-
+    //while true for waiting requests
     while (true) {
+        //start waiting flag from helper
         MPI_Recv(&giveMeWork, 1, MPI_CXX_BOOL, MPI_ANY_SOURCE, TAG_FOR_REQUEST, MPI_COMM_WORLD, &status);
+        //if thread get STOP_RECV kill itself
         if (giveMeWork == STOP_RECV) {
             pthread_exit(nullptr);
         }
+        //mutex to lock global values bc we will change its
         pthread_mutex_lock(&mutex);
         int restNumTasks = numTasks - currTask;
         numShareTask = restNumTasks / 2;
+        //send the num of task for helper
         MPI_Send(&numShareTask, 1, MPI_INT, status.MPI_SOURCE, TAG_FOR_NUM, MPI_COMM_WORLD);
+        //if process can't give tasks unlock mutex and start waiting new request
         if (numShareTask == 0) {
             pthread_mutex_unlock(&mutex);
             continue;
         }
         numTasks -= numShareTask;
+        //send new tasks for helper
         MPI_Send(&taskList[numTasks], numShareTask, MPI_INT, status.MPI_SOURCE, TAG_FOR_LIST, MPI_COMM_WORLD);
         pthread_mutex_unlock(&mutex);
     }
@@ -165,20 +180,18 @@ int execute() {
         perror("lab5 : pthread_create() failed for 2nd thread");
         return  -1;
     }
-    //main wait the 1st thread
-
+    //main thread wait the 1st thread
     if (pthread_join(threads[0], nullptr) != 0) {
         perror("lab5 : pthread_join() failed for 1st thread");
         return  -1;
     }
-    //main wait the 2nd thread
+    //main thread wait the 2nd thread
     if (pthread_join(threads[1], nullptr) != 0) {
         perror("lab5 : pthread_join() failed for 2nd thread");
         return -1;
     }
     //clear resources
     pthread_attr_destroy(&attr);
-
     return 0;
 }
 
