@@ -6,7 +6,7 @@
 #define NUM_THREADS 2
 #define NUM_LISTS 8
 //this parameter we choose by yourself
-#define L 3000
+#define L 11000
 #define NUM_TASKS 3600
 
 #define TAG_FOR_LIST 2
@@ -24,7 +24,31 @@ pthread_mutex_t mutex;
 void printConclusion(const std::string& message, int rank, double value) {
      std::cout << message << rank << ": " << value << std::endl;
 }
-
+void print (double timeOneIter, int numProc, int rankProc, int iterCounter, int sumNumTaskPerIter) {
+    double maxTime = 0;
+    double minTime = 0;
+    MPI_Allreduce(&timeOneIter, &minTime, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    MPI_Allreduce(&timeOneIter, &maxTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    double delta = maxTime - minTime;
+    double percentDelta = delta * 100 / maxTime;
+    for (int i = 0; i < numProc; ++i) {
+        if (rankProc == i) {
+            if (rankProc == 0) {
+                std::cout << "                         ITER " << iterCounter << std::endl;
+            }
+            std::cout << "                         RANK " << rankProc << std::endl;
+            printConclusion("Time per iter on proc with rank number ", rankProc, timeOneIter);
+            printConclusion("Num of tasks for all iter on proc with rank number ", rankProc, sumNumTaskPerIter);
+            printConclusion("Global sum on proc with rank number ", rankProc, globSum);
+            printConclusion("Disbalance time on proc with rank number ", rankProc, delta);
+            printConclusion("Percentage of disbalance on proc with rank number ", rankProc, percentDelta);
+            if (rankProc == numProc - 1) {
+                std::cout << "-------------------------------------------------------------" << std::endl;
+            }
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+}
 void makeTaskList (int sizeList, int numProc, int rankProc, int iterCounter) {
     for (int i = 0; i < sizeList; ++i) {
         taskList[i] = abs((50 - i % 100) * (rankProc - (iterCounter % numProc))) * L;
@@ -85,29 +109,7 @@ void *doWork(void *args) {
         double end = MPI_Wtime();
         double timeOneIter = end - start;
         //TODO FUNC FOR PRINT
-        double maxTime = 0;
-        double minTime = 0;
-        MPI_Allreduce(&timeOneIter, &minTime, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-        MPI_Allreduce(&timeOneIter, &maxTime,1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        double delta = maxTime - minTime;
-        double percentDelta = delta * 100 / maxTime;
-        for (int i = 0; i < numProc; ++i) {
-            if (rankProc == i) {
-                if (rankProc == 0) {
-                    std::cout << "                         ITER " << iterCounter << std::endl;
-                }
-                std::cout << "                         RANK " << rankProc << std::endl;
-                printConclusion("Time per iter on proc with rank number ", rankProc, timeOneIter);
-                printConclusion("Num of tasks for all iter on proc with rank number ", rankProc, sumNumTaskPerIter);
-                printConclusion("Global sum on proc with rank number ", rankProc, globSum);
-                printConclusion("Disbalance time on proc with rank number ", rankProc, delta);
-                printConclusion("Percentage of disbalance on proc with rank number ", rankProc, percentDelta);
-                if (rankProc == numProc - 1) {
-                    std::cout << "-------------------------------------------------------------" << std::endl;
-                }
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
+        print(timeOneIter, numProc, rankProc, iterCounter, sumNumTaskPerIter);
         MPI_Barrier(MPI_COMM_WORLD);
     }
     myWorkDone = STOP_RECV;
