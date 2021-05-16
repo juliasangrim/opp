@@ -4,10 +4,10 @@
 #include <cmath>
 
 #define NUM_THREADS 2
-#define NUM_LISTS 3
+#define NUM_LISTS 2
 //this parameter we choose by yourself
 #define L 12
-#define NUM_TASKS 3600
+#define NUM_TASKS 10
 
 #define TAG_FOR_LIST 2
 #define TAG_FOR_REQUEST 1
@@ -23,6 +23,13 @@ pthread_mutex_t mutex;
 
 void debug(const std::string& debugMessage, int rank) {
     std::cout << "NUM " << rank << ":" << debugMessage << std::endl;
+}
+
+void printTasks() {
+    for (int i = 0; i < numTasks; ++i) {
+        std::cout << taskList[i] << " ";
+    }
+    std::cout << std::endl;
 }
 
 void makeTaskList (int sizeList, int numProc, int rankProc, int iterCounter) {
@@ -45,32 +52,53 @@ void *doWork(void *args) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rankProc);
     //flag for get additional job for curr proccess
     bool myWorkDone = true;
+    debug("DOWORK :: STARTING THE LOOP FOR LISTS", rankProc);
     for (int iterCounter = 0; iterCounter < NUM_LISTS; ++iterCounter) {
         numTasks = NUM_TASKS / numProc;
         taskList = new int[numTasks];
         //fill list of tasks
+        debug("DOWORK :: MAKE LIST ", rankProc);
         makeTaskList(numTasks, numProc, rankProc, iterCounter);
+        debug("DOWORK :: MAKE LIST END", rankProc);
+        debug("DOWORK :: START LOOP WHILE TRUE", rankProc);
         while (true) {
             for (currTask = 0; currTask < numTasks; ++currTask) {
+                debug("DOWORK :: MUTEX LOCK", rankProc);
                 pthread_mutex_lock(&mutex);
+                debug("DOWORK :: MUTEX LOCK END", rankProc);
                 int currWait = taskList[currTask];
+                debug("DOWORK :: MUTEX UNLOCK", rankProc);
                 pthread_mutex_unlock(&mutex);
+                debug("DOWORK :: MUTEX UNLOCK END", rankProc);
+                debug("DOWORK :: DO TASK START", rankProc);
                 doTask(currWait);
+                debug("DOWORK ::DO TASK END", rankProc);
                 //delete task
 
             }
             //done all work in curr list
+            debug("DOWORK :: DONE ALL WORK IN YOURSELF LIST  AND REQUEST FOR JOB", rankProc);
             numTasks = 0;
             //request for additional job
+
             for (int i = 0; i < numProc; ++i) {
                 if (i != rankProc) {
+                    debug("DOWORK :: START SEND REQUEST", rankProc);
                     MPI_Send(&myWorkDone, 1, MPI_CXX_BOOL, i, TAG_FOR_REQUEST, MPI_COMM_WORLD);
+                    debug("DOWORK :: END SEND REQUEST", rankProc);
+                    debug("DOWORK :: START RECV REQUEST", rankProc);
                     MPI_Recv(&numTasks, 1, MPI_INT, i, TAG_FOR_NUM, MPI_COMM_WORLD, &status);
-                    //if the proc done
+                    debug("DOWORK :: END RECV REQUEST", rankProc);
+                    //if the proc have nothing to give
+                    debug("DOWORK :: CHECK IF OTHER PROC HAVE JOB", rankProc);
                     if (numTasks == 0) {
                         continue;
                     }
+                    debug("DOWORK :: START RECV TASKS", rankProc);
                     MPI_Recv(taskList, numTasks, MPI_INT, i, TAG_FOR_LIST, MPI_COMM_WORLD, &status);
+                    debug("DOWORK :: END RECV TASKS", rankProc);
+                    debug("DOWORK :: PRINT", rankProc);
+                    printTasks();
                 }
             }
             //if no one get job to process, end the loop and curr list of task
@@ -78,11 +106,19 @@ void *doWork(void *args) {
                 break;
             }
         }
+        debug("DOWORK :: END LOOP WHILE TRUE", rankProc);
         delete[] taskList;
+        debug("DOWORK :: START SUNC", rankProc);
         MPI_Barrier(MPI_COMM_WORLD);
+        debug("DOWORK :: END SYNC", rankProc);
     }
+    debug("DOWORK :: END THE LOOP FOR LISTS", rankProc);
     myWorkDone = STOP_RECV;
+    debug("DOWORK :: START SEND TO KILL THREAD", rankProc);
     MPI_Send(&myWorkDone, 1, MPI_CXX_BOOL, rankProc, TAG_FOR_REQUEST, MPI_COMM_WORLD);
+    debug("DOWORK :: END SEND TO KILL THREAD", rankProc);
+
+    debug("DOWORK :: KILL THREAD", rankProc);
     pthread_exit(nullptr);
 }
 
@@ -97,21 +133,36 @@ void *waitForRequest(void *args) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rankProc);
     ////////////////////////////
     MPI_Status status;
+
+    debug("WAIT :: WHILE TRUE LOOP", rankProc);
     while (true) {
+        debug("WAIT :: START RECIEVE FLAG FOR JOB", rankProc);
         MPI_Recv(&giveMeWork, 1, MPI_CXX_BOOL, MPI_ANY_SOURCE, TAG_FOR_REQUEST, MPI_COMM_WORLD, &status);
+        debug("WAIT :: END RECIEVE FLAG FOR JOB", rankProc);
         if (giveMeWork == STOP_RECV) {
+            debug("WAIT :: KILL THREAD", rankProc);
             pthread_exit(nullptr);
         }
+        debug("WAIT :: START MUTEX LOCK", rankProc);
         pthread_mutex_lock(&mutex);
+        debug("WAIT :: END MUTEX LOCK", rankProc);
         int restNumTasks = numTasks - currTask + 1;
+        debug("WAIT :: PRINT", rankProc);
         numShareTask = restNumTasks / 2;
+        std::cout << "WAIT :: REST NUM " << restNumTasks << " numSHARE " << numShareTask << " RANK: " <<rankProc << std::endl;
+        debug("WAIT :: START SEND NEW NUM OF TASK", rankProc);
         MPI_Send(&numShareTask, 1, MPI_INT, status.MPI_SOURCE, TAG_FOR_NUM, MPI_COMM_WORLD);
+        debug("WAIT :: END SEND NEW NUM OF TASK", rankProc);
         if (numShareTask == 0) {
             continue;
         }
         numTasks -= numShareTask;
+        debug("WAIT :: START SEND NEW TASKS", rankProc);
         MPI_Send(&taskList[numTasks], numShareTask, MPI_INT, status.MPI_SOURCE, TAG_FOR_LIST, MPI_COMM_WORLD);
+        debug("WAIT :: END SEND NEW TASKS", rankProc);
+        debug("WAIT :: START UNLOCK MUTEX", rankProc);
         pthread_mutex_unlock(&mutex);
+        debug("WAIT :: END UNLOCK MUTEX", rankProc);
     }
 }
 
@@ -137,8 +188,8 @@ int execute() {
         perror("lab5 : pthread_attr_setdetachstate() failed");
         return -1;
     }
-    debug("EXEC :: DO THREAD JOINABLE", rankProc);
-    //create first thread
+    debug("EXEC :: DO THREAD JOINABLE END", rankProc);
+    //create 1st thread
     debug("EXEC :: CREATE 1ST THREAD", rankProc);
     if (pthread_create(&threads[0], &attr, doWork, nullptr) != 0) {
         perror("lab5 : pthread_create() failed for 1st thread");
@@ -152,16 +203,18 @@ int execute() {
         return  -1;
     }
     debug("EXEC :: CREATE 2ND THREAD END", rankProc);
-    //
+    //main wait the 1st thread
+
     if (pthread_join(threads[0], nullptr) != 0) {
         perror("lab5 : pthread_join() failed for 1st thread");
         return  -1;
     }
+    //main wait the 2nd thread
     if (pthread_join(threads[1], nullptr) != 0) {
         perror("lab5 : pthread_join() failed for 2nd thread");
         return -1;
     }
-
+    debug("EXEC :: BOTH THREAD DIED", rankProc);
     //clear resources
     pthread_attr_destroy(&attr);
 
@@ -172,15 +225,21 @@ int main(int argc, char* argv[]) {
     int provided = 0;
     //init thread
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-    debug("INIT THREADS");
+    ////////////debug///////////
+    int numProc;
+    int rankProc;
+    MPI_Comm_size(MPI_COMM_WORLD, &numProc);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rankProc);
+    ////////////////////////////
+    debug("INIT THREADS", rankProc);
     if (provided != MPI_THREAD_MULTIPLE) {
         perror("lab5 : Not required lvl.\n");
         //TODO check man for Finalize
         return  -1;
     }
-    debug("MAIN :: START EXECUTE");
+    debug("MAIN :: START EXECUTE", rankProc);
     execute();
-    debug("MAIN :: END EXECUTE");
+    debug("MAIN :: END EXECUTE", rankProc);
     MPI_Finalize();
     return 0;
 }
