@@ -4,10 +4,10 @@
 #include <cmath>
 
 #define NUM_THREADS 2
-#define NUM_LISTS 3
+#define NUM_LISTS 8
 //this parameter we choose by yourself
-#define L 12
-#define NUM_TASKS 56
+#define L 3000
+#define NUM_TASKS 3600
 
 #define TAG_FOR_LIST 2
 #define TAG_FOR_REQUEST 1
@@ -15,7 +15,7 @@
 
 #define STOP_RECV 0
 
-int globSum = 0;
+double globSum = 0;
 int *taskList = nullptr;
 int numTasks;
 int currTask;
@@ -24,29 +24,32 @@ pthread_mutex_t mutex;
 void debug(const std::string& debugMessage, int rank) {
     for (int i = 0; i < 8; ++i) {
         if (rank == i) {
-            std::cout << "NUM " << rank << ":" << debugMessage << std::endl;
+            std::cout << "NUM " << rank << ": " << debugMessage << std::endl;
         }
         //MPI_Barrier(MPI_COMM_WORLD);
     }
 }
 
-void printTasks(int rank) {
-    for (int i = 0; i < 8; ++i) {
-        if (rank == i) {
-
-            for (int j = 0; j < numTasks; ++j) {
-                std::cout << taskList[j] << " ";
-            }
-            std::cout << std::endl;
-        }
-        //MPI_Barrier(MPI_COMM_WORLD);
-
-    }
+void printConclusion(const std::string& message, int rank, double value) {
+     std::cout << message << rank << ": " << value << std::endl;
 }
+//void printTasks(int rank) {
+//    for (int i = 0; i < 8; ++i) {
+//        if (rank == i) {
+//
+//            for (int j = 0; j < numTasks; ++j) {
+//                std::cout << taskList[j] << " ";
+//            }
+//            std::cout << std::endl;
+//        }
+//        //MPI_Barrier(MPI_COMM_WORLD);
+//
+//    }
+//}
 
 void makeTaskList (int sizeList, int numProc, int rankProc, int iterCounter) {
     for (int i = 0; i < sizeList; ++i) {
-        taskList[i] = abs((50 - i % 100) * rankProc - (iterCounter % numProc)) * L;
+        taskList[i] = abs((50 - i % 100) * (rankProc - (iterCounter % numProc))) * L;
     }
 }
 
@@ -74,11 +77,12 @@ void *doWork(void *args) {
         //fill list of tasks
         //debug("DOWORK :: MAKE LIST ", rankProc);
         makeTaskList(numTasks, numProc, rankProc, iterCounter);
-        printTasks(rankProc);
+        //printTasks(rankProc);
         //debug("DOWORK :: MAKE LIST END", rankProc);
         //debug("DOWORK :: START LOOP WHILE TRUE", rankProc);
 
         while (true) {
+            sumNumTaskPerIter += numTasks;
             for (currTask = 0; currTask < numTasks; ++currTask) {
                 //debug("DOWORK :: MUTEX LOCK", rankProc);
                 pthread_mutex_lock(&mutex);
@@ -89,7 +93,6 @@ void *doWork(void *args) {
                 //debug("DOWORK :: MUTEX UNLOCK END", rankProc);
                // debug("DOWORK :: DO TASK START", rankProc);
                 doTask(currWeight);
-                sumNumTaskPerIter += currWeight;
              //   debug("DOWORK ::DO TASK END", rankProc);
                 //delete task
 
@@ -106,17 +109,17 @@ void *doWork(void *args) {
                     //debug("DOWORK :: END SEND REQUEST", rankProc);
                     //debug("DOWORK :: START RECV NUM TASK", rankProc);
                     MPI_Recv(&recvTask, 1, MPI_INT, i, TAG_FOR_NUM, MPI_COMM_WORLD, &status);
-                  //  debug("DOWORK :: END RECV NUM TASK", rankProc);
+                    //debug("DOWORK :: END RECV NUM TASK", rankProc);
                     //if the proc have nothing to give
-                //    debug("DOWORK :: CHECK IF OTHER PROC HAVE JOB", rankProc);
                     if (recvTask == 0) {
+                        //debug("DOWORK :: DONT HAVE JOB", rankProc);
                         continue;
                     }
-              //      debug("DOWORK :: START RECV TASKS", rankProc);
+                    //debug("DOWORK :: START RECV TASKS", rankProc);
                     MPI_Recv(taskList, recvTask, MPI_INT, i, TAG_FOR_LIST, MPI_COMM_WORLD, &status);
-            //        debug("DOWORK :: END RECV TASKS", rankProc);
-          //          debug("DOWORK :: PRINT", rankProc);
-                    printTasks(rankProc);
+                    //debug("DOWORK :: END RECV TASKS", rankProc);
+                    //debug("DOWORK :: PRINT", rankProc);
+                   // printTasks(rankProc);
                 }
             }
             //if no one get job to process, end the loop and curr list of task
@@ -130,9 +133,29 @@ void *doWork(void *args) {
         //debug("DOWORK :: START SUNC", rankProc);
         double end = MPI_Wtime();
         double timeOneIter = end - start;
-        std::cout << "Time per iter on proc with rank number " << rankProc << ":" << timeOneIter <<std::endl;
-        std::cout << "Num of tasks for all iter on proc with rank number " << rankProc << ":" << sumNumTaskPerIter <<std::endl;
-        std::cout << "Global sum on proc with rank number " << rankProc << ":" << globSum <<std::endl;
+        double maxTime = 0;
+        double minTime = 0;
+        MPI_Allreduce(&timeOneIter, &minTime, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+        MPI_Allreduce(&timeOneIter, &maxTime,1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        double delta = maxTime - minTime;
+        double percentDelta = delta * 100 / maxTime;
+        for (int i = 0; i < numProc; ++i) {
+            if (rankProc == i) {
+                if (rankProc == 0) {
+                    std::cout << "                         ITER " << iterCounter << std::endl;
+                }
+                std::cout << "                         RANK " << rankProc << std::endl;
+                printConclusion("Time per iter on proc with rank number ", rankProc, timeOneIter);
+                printConclusion("Num of tasks for all iter on proc with rank number ", rankProc, sumNumTaskPerIter);
+                printConclusion("Global sum on proc with rank number ", rankProc, globSum);
+                printConclusion("Disbalance time on proc with rank number ", rankProc, delta);
+                printConclusion("Percentage of disbalance on proc with rank number ", rankProc, percentDelta);
+                if (rankProc == numProc - 1) {
+                    std::cout << "-------------------------------------------------------------" << std::endl;
+                }
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
         MPI_Barrier(MPI_COMM_WORLD);
         //debug("DOWORK :: END SYNC", rankProc);
     }
