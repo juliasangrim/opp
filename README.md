@@ -6,3 +6,4 @@
 5. lab2_v_2 - algorithm of solving equation(parallel execution with one parallels zone) with using OpenMp
 6. lab3 - algorithm of multiply matrix with process grid with using MPI
 7. lab4 - algorithm of solving partial differential equation with method Jaccobi with using MPI
+8. lab5 - Posix Thread
