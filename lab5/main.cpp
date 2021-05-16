@@ -6,7 +6,7 @@
 #define NUM_THREADS 2
 #define NUM_LISTS 8
 //this parameter we choose by yourself
-#define L 11000
+#define L 5000
 #define NUM_TASKS 3600
 
 #define TAG_FOR_LIST 2
@@ -18,7 +18,7 @@
 double globSum = 0;
 int *taskList = nullptr;
 int numTasks;
-int currTask;
+int currTask = 0;
 pthread_mutex_t mutex;
 
 void printConclusion(const std::string& message, int rank, double value) {
@@ -73,43 +73,49 @@ void *doWork(void *args) {
     for (int iterCounter = 0; iterCounter < NUM_LISTS; ++iterCounter) {
         double start = MPI_Wtime();
         int sumNumTaskPerIter = 0;
+        currTask = 0;
         numTasks = NUM_TASKS / numProc;
         int recvTask = 0;
         taskList = new int[numTasks];
-        //fill list of tasks
         makeTaskList(numTasks, numProc, rankProc, iterCounter);
+        //fill list of tasks
         //while for additional work
         while (true) {
-            sumNumTaskPerIter += numTasks;
             //do task list
-            for (currTask = 0; currTask < numTasks; ++currTask) {
+            for (int i = 0; i < numTasks; ++i) {
                 //mutex for get safety data
                 pthread_mutex_lock(&mutex);
-                int currWeight = taskList[currTask];
+                int currWeight = taskList[i];
+                ++currTask;
                 pthread_mutex_unlock(&mutex);
                 doTask(currWeight);
+                ++sumNumTaskPerIter;
             }
             //done all work in curr list
             //request for additional job
-            for (int i = 0; i < numProc; ++i) {
-                if (i != rankProc) {
+            for (int j = 0; j < numProc; ++j) {
+                if (j != rankProc) {
                     //send flag for additional job
-                    MPI_Send(&myWorkDone, 1, MPI_CXX_BOOL, i, TAG_FOR_REQUEST, MPI_COMM_WORLD);
+                    MPI_Send(&myWorkDone, 1, MPI_CXX_BOOL, j, TAG_FOR_REQUEST, MPI_COMM_WORLD);
                     //get new num of task
-                    MPI_Recv(&recvTask, 1, MPI_INT, i, TAG_FOR_NUM, MPI_COMM_WORLD, &status);
+                    MPI_Recv(&recvTask, 1, MPI_INT, j, TAG_FOR_NUM, MPI_COMM_WORLD, &status);
                     //if the proc have nothing to give
                     if (recvTask == 0) {
                         continue;
                     }
                     //get new tasks
-                    MPI_Recv(taskList, recvTask, MPI_INT, i, TAG_FOR_LIST, MPI_COMM_WORLD, &status);
+                    MPI_Recv(taskList, recvTask, MPI_INT, j, TAG_FOR_LIST, MPI_COMM_WORLD, &status);
+                    break;
                 }
             }
             //if no one get job to process, end the loop and curr list of task
             if (recvTask == 0) {
                 break;
             }
+            pthread_mutex_lock(&mutex);
             numTasks = recvTask;
+            currTask = 0;
+            pthread_mutex_unlock(&mutex);
         }
         delete[] taskList;
         double end = MPI_Wtime();
@@ -150,7 +156,7 @@ void *waitForRequest(void *args) {
             pthread_mutex_unlock(&mutex);
             continue;
         }
-        numTasks -= numShareTask;
+        numTasks = numTasks - numShareTask;
         //send new tasks for helper
         MPI_Send(&taskList[numTasks], numShareTask, MPI_INT, status.MPI_SOURCE, TAG_FOR_LIST, MPI_COMM_WORLD);
         pthread_mutex_unlock(&mutex);
